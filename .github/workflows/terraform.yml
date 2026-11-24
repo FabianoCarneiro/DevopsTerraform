@@ -6,6 +6,20 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+    inputs:
+      action:
+        description: "Ação do Terraform a executar"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - destroy
+      confirm_destroy:
+        description: "Digite 'destroy' para confirmar a destruição da infraestrutura"
+        required: false
+        default: ""
+        type: string
 
 jobs:
   terraform:
@@ -46,7 +60,7 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.action == 'plan')
         run: terraform plan -no-color -input=false
 
       - name: Update Pull Request
@@ -86,3 +100,13 @@ jobs:
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve -input=false
+
+      - name: Validate Destroy Confirmation
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy' && inputs.confirm_destroy != 'destroy'
+        run: |
+          echo "::error::Destroy não confirmado. Digite 'destroy' no campo de confirmação."
+          exit 1
+
+      - name: Terraform Destroy
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy' && inputs.confirm_destroy == 'destroy'
+        run: terraform destroy -auto-approve -input=false
